@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import no.hal.eclipsky.services.common.Proposal;
 import no.hal.eclipsky.services.common.ResourceHelper;
 import no.hal.eclipsky.services.common.SourceFileMarker;
 import no.hal.eclipsky.services.editor.RunResult;
@@ -12,11 +13,14 @@ import no.hal.eclipsky.services.editor.SourceEditor;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.debug.core.DebugPlugin;
 import org.eclipse.debug.core.ILaunch;
 import org.eclipse.debug.core.ILaunchConfiguration;
 import org.eclipse.debug.core.ILaunchManager;
+import org.eclipse.debug.core.IStreamListener;
 import org.eclipse.debug.core.model.IProcess;
 import org.eclipse.debug.core.model.IStreamMonitor;
+import org.eclipse.debug.core.model.IStreamsProxy;
 import org.eclipse.jdt.launching.IJavaLaunchConfigurationConstants;
 
 public class GenericSourceEditor implements SourceEditor {
@@ -56,13 +60,13 @@ public class GenericSourceEditor implements SourceEditor {
 	}
 
 	@Override
-	public String[] complete(int pos) {
-		final Collection<String> completions = new ArrayList<String>();
-		addCompletionProposals(pos, completions);
-		return completions.toArray(new String[completions.size()]);
+	public Proposal[] complete(int pos) {
+		final Collection<Proposal> completions = new ArrayList<>();
+		addCompletionProposals(pos, completions);		
+		return completions.toArray(new Proposal[completions.size()]);
 	}
 
-	protected void addCompletionProposals(int pos, Collection<String> completions) {
+	protected void addCompletionProposals(int pos, Collection<Proposal> completions) {
 	}
 
 	//
@@ -110,9 +114,10 @@ public class GenericSourceEditor implements SourceEditor {
 	private ILaunch launch = null;
 	
 	private RunResult launch(ILaunchConfiguration launchConfiguration) throws CoreException {
+		/*
 		if (launch != null) {
 			return null;
-		}
+		}*/
 		launch = launchConfiguration.launch(ILaunchManager.RUN_MODE, null);
 		while (! launch.isTerminated()) {
 			try {
@@ -133,10 +138,9 @@ public class GenericSourceEditor implements SourceEditor {
 	}
 
 	private void appendStreamContents(StringBuilder buffer, IStreamMonitor stream) {
-		String errorStream = stream.getContents();
-		if (errorStream != null && errorStream.length() > 0) {
-			buffer.append(errorStream);
-		}
+		String output = stream.getContents();
+		if (output != null && output.length() > 0)
+			buffer.append(output);
 	}
 
 	protected String getQualifiedClassName(String suffix) {

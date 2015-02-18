@@ -12,14 +12,15 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import no.hal.eclipsky.services.common.Proposal;
 import no.hal.eclipsky.services.common.SourceFileMarker;
 import no.hal.eclipsky.services.editor.EditorService;
+import no.hal.eclipsky.services.editor.RunResult;
 import no.hal.eclipsky.services.editor.SourceEditor;
 
 import org.eclipse.jetty.websocket.WebSocket;
 import org.eclipse.jetty.websocket.WebSocketServlet;
 import org.osgi.service.http.HttpService;
-import org.osgi.service.http.NamespaceException;
 
 @SuppressWarnings("serial")
 public class SourceEditorServlet extends WebSocketServlet {
@@ -127,11 +128,27 @@ public class SourceEditorServlet extends WebSocketServlet {
 			}
 		}
 	}
+	
+	private String runResponse(RunResult result, String protocol) {
+		ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+		PrintWriter output = new PrintWriter(buffer);
+		SourceFileRunServlet.writeRunResponse(protocol, output, result);
+		output.close();
+		return buffer.toString();
+	}
 
 	private String markersResponse(SourceFileMarker[] sourceFileMarkers, String protocol) {
 		ByteArrayOutputStream buffer = new ByteArrayOutputStream();
 		PrintWriter output = new PrintWriter(buffer);
 		SourceFileMarkersServlet.writeMarkersResponse(protocol, output, sourceFileMarkers);
+		output.close();
+		return buffer.toString();
+	}
+	
+	private String completionsResponse(Proposal [] completions, String protocol) {
+		ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+		PrintWriter output = new PrintWriter(buffer);
+		SourceFileCompletionsServlet.writeCompletionsResponse(protocol, output, completions);
 		output.close();
 		return buffer.toString();
 	}
@@ -159,6 +176,7 @@ public class SourceEditorServlet extends WebSocketServlet {
 
 			@Override
 			public void onClose(int closeCode, String message) {
+				// TODO: Notify GIT exporter
 				editor.close();
 			}
 
@@ -170,23 +188,58 @@ public class SourceEditorServlet extends WebSocketServlet {
 					command = command.substring(0, pos);
 					contents = message.substring(pos + 1);
 				}
-				if ("update".equals(command)) {
+				
+				switch(command) {
+				case "update":
 					doUpdate(contents);
-				} else if ("complete".equals(command)) {
+					break;
+				case "codeCompletion":
+					sendComplete(contents);
+					break;
+				case "run":
+					runCode(contents);
+					break;
+				}
+			}
+			
+			private void runCode(String contents) {				
+				editor.close();
+				// second boolean, result, doesn't do anything
+				RunResult result = editor.run(contents, true);
+				if (debugWriter != null) {
+					SourceFileRunServlet.writeRunResponse(protocol, debugWriter, result);
+					debugWriter.flush();
+				}
+				try {
+					connection.sendMessage(runResponse(result, protocol));
+				} catch (IOException e) {
 				}
 			}
 
 			private void doUpdate(String stringContent) {
 				SourceFileMarker[] sourceFileMarkers = editor.update(stringContent, markersDefault, false);
-				for (int i = 0; i < sourceFileMarkers.length; i++) {
-					System.out.println("SourceFileMarker #" + i + ": " + sourceFileMarkers[i]);
-				}
 				if (debugWriter != null) {
 					SourceFileMarkersServlet.writeMarkersResponse(protocol, debugWriter, sourceFileMarkers);
 					debugWriter.flush();
 				}
 				try {
 					connection.sendMessage(markersResponse(sourceFileMarkers, protocol));
+				} catch (IOException e) {
+				}
+			}
+			
+			private void sendComplete(String contents) {
+				int position = Integer.parseInt(contents);
+				Proposal[] completions = editor.complete(position);
+				if (completions.length == 0) {
+					return;
+				}
+				if (debugWriter != null) {
+					SourceFileCompletionsServlet.writeCompletionsResponse(protocol, debugWriter, completions);
+				}
+				
+				try {
+					connection.sendMessage(completionsResponse(completions, protocol));
 				} catch (IOException e) {
 				}
 			}

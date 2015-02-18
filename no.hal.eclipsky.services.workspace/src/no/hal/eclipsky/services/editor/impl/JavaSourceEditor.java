@@ -2,10 +2,12 @@ package no.hal.eclipsky.services.editor.impl;
 
 import java.util.Collection;
 
+import no.hal.eclipsky.services.common.Proposal;
 import no.hal.eclipsky.services.common.SourceFileMarker;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.debug.core.DebugPlugin;
 import org.eclipse.debug.core.ILaunchConfiguration;
 import org.eclipse.debug.core.ILaunchConfigurationType;
@@ -19,7 +21,6 @@ import org.eclipse.jdt.core.IProblemRequestor;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
 import org.eclipse.jdt.core.WorkingCopyOwner;
-import org.eclipse.jdt.core.compiler.IProblem;
 import org.eclipse.jdt.launching.IJavaLaunchConfigurationConstants;
 
 public class JavaSourceEditor extends GenericSourceEditor {
@@ -72,18 +73,21 @@ public class JavaSourceEditor extends GenericSourceEditor {
 	}
 
 	@Override
-	protected void addCompletionProposals(int pos, Collection<String> completions) {
+	protected void addCompletionProposals(int pos, Collection<Proposal> completions) {
 		try {
 			workingCopy.codeComplete(pos, new CompletionRequestor() {
 				@Override
 				public void accept(CompletionProposal proposal) {
-					completions.add(proposal.toString());
+					Proposal p = Proposal.getProposal(proposal);
+					completions.add(p);
+					
 				}
 			});
 		} catch (JavaModelException e) {
+			e.printStackTrace();
 		}
 	}
-
+	
 	@Override
 	public void close() {
 		if (workingCopy != null) {

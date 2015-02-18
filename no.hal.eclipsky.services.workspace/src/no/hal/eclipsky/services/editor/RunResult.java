@@ -6,7 +6,7 @@ public class RunResult {
 	
 	private final String qualifiedName;
 	private SourceFileMarker exceptionLocation;
-	private String consoleOutput, errorOutput;
+	private String consoleOutput = "", errorOutput = "";
 
 	public RunResult(String qualifiedName) {
 		this.qualifiedName = qualifiedName;
@@ -36,4 +36,14 @@ public class RunResult {
 	public void setErrorOutput(String errorOutput) {
 		this.errorOutput = errorOutput;
 	}
+
+	@Override
+	public String toString() {
+		return "RunResult [qualifiedName=" + qualifiedName
+				+ ", exceptionLocation=" + exceptionLocation
+				+ ", consoleOutput=" + consoleOutput + ", errorOutput="
+				+ errorOutput + "]";
+	}
+	
+	
 }

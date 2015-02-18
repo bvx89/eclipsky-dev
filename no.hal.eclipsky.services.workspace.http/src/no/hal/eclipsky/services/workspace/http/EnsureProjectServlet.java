@@ -1,7 +1,9 @@
 package no.hal.eclipsky.services.workspace.http;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.StringBufferInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import javax.servlet.ServletException;
@@ -43,8 +45,9 @@ public class EnsureProjectServlet extends ProjectListServlet {
 			ext += "x";
 		}
 		Resource resource = resourceSet.createResource(URI.createURI("temp." + ext));
-		try {
-			resource.load(new StringBufferInputStream(body), null);
+		byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+		try (InputStream stream = new ByteArrayInputStream(bytes);){
+			resource.load(stream, null);
 			Object emfsResource = EcoreUtil.getObjectByType(resource.getContents(), EmfsPackage.eINSTANCE.getEmfsContainer());
 			return (EmfsResource) emfsResource;
 		} catch (IOException e) {

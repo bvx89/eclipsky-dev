@@ -3,15 +3,77 @@ function edit(editorId, mode, url) {
 	var editor = ace.edit(editorId);
 	editor.setTheme("ace/theme/monokai");
 	editor.commands.addCommand({
-		name: 'save', readOnly: false, bindKey: { win: 'Ctrl-S', mac: 'Command-S' },
-		exec: save
+		name: 'run', readOnly: false, bindKey: { win: 'Ctrl-R', mac: 'Command-R' },
+		exec: run
 	});
+	
 	editor.getSession().setMode("ace/mode/" + mode);
+	editor.getSession().on('change', function() {
+		if (document.title[0] !== '*') {
+			document.title = '*' + document.title;
+		}
+	});
 	editor.serviceUrl = window.location;
+	
+	editor.completers = [createCompleter()];
+	editor.setOptions({
+	  enableBasicAutocompletion: true,
+	});
+	
 	openWebSocket(editor);
 	registerChangeHandler(editor);
+	
 	return editor;
 }
+
+function run(editor) {
+	if (document.title[0] === '*') {
+		document.title = document.title.substr(1, document.title.length);
+	}
+	
+	if (webSocket != null && webSocket.readyState == webSocket.OPEN) {
+		runWS(editor);
+	} else {
+		// runXHR(editor);
+	}
+}
+
+function save(editor) {
+	if (webSocket != null && webSocket.readyState == webSocket.OPEN) {
+		sendWSMessage("update", editor.getValue());
+	} else {
+		saveXHR(editor);
+	}
+}
+
+function runWS(editor) {
+	sendWSMessage("run", editor.getValue());
+}
+
+function createCompleter(){
+	return {
+		getCompletions: function(editor, session, pos, prefix, callback) {
+			sendWSMessage("codeCompletion", 
+						calculateOffset(session.getValue(), pos));
+			completionCallback = callback;
+		}
+	};
+}
+
+function calculateOffset(code, position){
+	var lines = code.split("\n");
+	var offset = 0;
+	for(var i = 0; i < position.row; i++){
+		offset += lines[i].length + 1;
+	}
+	offset += position.column;
+	return offset;
+}
+
+
+
+
+
 
 var defaultSaveDelay = 500;
 var saveDelay = defaultSaveDelay;
@@ -27,8 +89,8 @@ function sendWSMessage(type, message) {
     console.time(type);
     message = type + '\n' + message;
     var data = message; // JSON.stringify({type: type, data: message});
+	console.log(data);
     webSocket.send(data);
-    console.log("Sent: " + data);
 }
 
 function openWebSocket(editor) {
@@ -38,17 +100,39 @@ function openWebSocket(editor) {
 	url.protocol = "ws";
     webSocket = new WebSocket(url.href, "json");
 
-    webSocket.onerror = function() {
-        console.log('ws error');
+    webSocket.onerror = function(event) {
+		console.log('ws error', event);
     };
 
-    webSocket.onclose = function() {
-        console.log('ws closed');
+    webSocket.onclose = function(event) {
+        console.log('ws close', event);
     };
 
     webSocket.onmessage = function(event) {
-        console.log(event.data);
-    	updateMarkers(editor, event.data);
+		var data = JSON.parse(event.data);
+		console.log(data);
+		if (data instanceof Array) {
+			if (data.length === 0) {
+				return;
+			}
+			var type = data[0]._type_;
+			switch(type) {
+				case 'problem':
+					updateMarkers(editor, data);
+					break;
+				case 'completion':
+					completionCallback(null, data);
+					break;
+				default:
+			}
+		} else {
+			var type = data._type_;
+			switch(type) {
+			case 'run':
+				editor.getSession().setAnnotations(undefined);
+			}
+		}
+
     }
 }
 
@@ -65,18 +149,6 @@ function handleChanged(editor, delay) {
 		saveTimer = null;
 		save(editor);
     }
-}
-
-function save(editor) {
-	if (webSocket != null && webSocket.readyState == webSocket.OPEN) {
-		saveWS(editor);
-	} else {
-		saveXHR(editor);
-	}
-}
-
-function saveWS(editor) {
-	sendWSMessage("update", editor.getValue());
 }
 
 function saveXHR(editor) {

@@ -52,6 +52,7 @@ public class AceEditorHelper {
 		writer.print(XmlResponseFormatter.escapeHtml(stringContent));
 		writer.println("</div>\n" +
 				"\t\t\t<script src=\"/ace/ace.js\" type=\"text/javascript\" charset=\"utf-8\"></script>\n" +
+				"\t\t\t<script src=\"/ace/ext-language_tools.js\" type=\"text/javascript\" charset=\"utf-8\"></script>\n" +
 				"\t\t\t<script src=\"/js/editor.js\" type=\"text/javascript\" charset=\"utf-8\"></script>\n" +
 				"\t\t<script>\n");
 		writer.println("\t\tedit(\"" + editorId + "\", \"" + mode + "\", window.location);\n");

@@ -14,4 +14,5 @@
    		interface="org.osgi.service.http.HttpService"
    		bind="setHttpService"
    	/>
+   	<property name="servlet.alias" value="sourceEditor"/>
 </scr:component>

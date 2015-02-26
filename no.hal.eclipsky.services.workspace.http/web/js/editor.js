@@ -1,124 +1,114 @@
-function edit(editorId, mode, url) {
-    ace.require("ace/ext/language_tools"); // Required for auto completion
-	var editor = ace.edit(editorId);
-	editor.setTheme("ace/theme/monokai");
-	editor.commands.addCommand({
-		name: 'run', readOnly: false, bindKey: { win: 'Ctrl-R', mac: 'Command-R' },
-		exec: run
-	});
-	
-	editor.getSession().setMode("ace/mode/" + mode);
-	editor.getSession().on('change', function() {
-		if (document.title[0] !== '*') {
-			document.title = '*' + document.title;
-		}
-	});
-	editor.serviceUrl = window.location;
-	
-	editor.completers = [createCompleter()];
-	editor.setOptions({
-	  enableBasicAutocompletion: true,
-	});
-	
-	openWebSocket(editor);
-	registerChangeHandler(editor);
-	
-	return editor;
-}
+var connector = connector || {};
 
-function run(editor) {
-	if (document.title[0] === '*') {
-		document.title = document.title.substr(1, document.title.length);
-	}
+var editor = (function(ace, con) {
+	var _editor,
+		editorIds,
+		currentId = 0,
 	
-	if (webSocket != null && webSocket.readyState == webSocket.OPEN) {
-		runWS(editor);
-	} else {
-		// runXHR(editor);
-	}
-}
-
-function save(editor) {
-	if (webSocket != null && webSocket.readyState == webSocket.OPEN) {
-		sendWSMessage("update", editor.getValue());
-	} else {
-		saveXHR(editor);
-	}
-}
-
-function runWS(editor) {
-	sendWSMessage("run", editor.getValue());
-}
-
-function createCompleter(){
-	return {
-		getCompletions: function(editor, session, pos, prefix, callback) {
-			sendWSMessage("codeCompletion", 
-						calculateOffset(session.getValue(), pos));
-			completionCallback = callback;
+		RUN_KEY = 'F9',
+		
+		completionCallback = null,
+		saveDelay = 500,
+		saveTimer = null;
+	
+	function initialize(editorId, mode) {
+		// Configure the basics
+		ace.require("ace/ext/language_tools"); // Required for auto completion
+		_editor = ace.edit(editorId);
+		_editor.setTheme("ace/theme/monokai");
+		_editor.getSession().setMode("ace/mode/" + mode);
+		
+		// Enable auto completion
+		_editor.completers = [createCompleter()];
+		_editor.setOptions({
+			  enableBasicAutocompletion: true,
+		});
+		
+		// Add run command
+		_editor.commands.addCommand({
+			name: 'run', 
+			readOnly: false, 
+			bindKey: { win: 'Ctrl-'+RUN_KEY, mac: 'Command-F9'+RUN_KEY },
+			exec: run
+		});
+		
+		// Custom event for when contents change
+		_editor.getSession().on('change', function(ev) {
+			ev.delay = true;
+			changed(ev);
+		});
+		
+		return _editor;
+	};
+	
+	// Handles the changes in the editor
+	function changed(ev) {		
+		/* 
+		 * Update on a '.', in order for auto completion 
+		 * to (maybe) be able to respond with the correct
+		 * suggestion derived from a correct, local document 
+		 */
+		if (ev.type === 'textEvent' && ev.text === '.') {
+			clearTimeout(saveTimer);
+			sendAllContent();
+			return;
+			
+		/*
+		 * Sets a delay of 'saveDelay' after last typing 
+		 * before sending all content to the connector 
+		 */
+		} else {
+			if (ev.delay) {
+				if (saveTimer != null) {
+					clearTimeout(saveTimer);
+				}
+				ev.delay = false;
+				saveTimer = setTimeout(function() {changed(ev);}, saveDelay);
+			} else {
+				saveTimer = null;
+				sendAllContent();
+		    }
 		}
 	};
-}
-
-function calculateOffset(code, position){
-	var lines = code.split("\n");
-	var offset = 0;
-	for(var i = 0; i < position.row; i++){
-		offset += lines[i].length + 1;
-	}
-	offset += position.column;
-	return offset;
-}
-
-
-
-
-
-
-var defaultSaveDelay = 500;
-var saveDelay = defaultSaveDelay;
-var saveTimer = null;
-
-function registerChangeHandler(editor) {
-    editor.on('change', function() { handleChanged(editor, saveDelay); });
-}
-
-var webSocket = null;
-
-function sendWSMessage(type, message) {
-    console.time(type);
-    message = type + '\n' + message;
-    var data = message; // JSON.stringify({type: type, data: message});
-	console.log(data);
-    webSocket.send(data);
-}
-
-function openWebSocket(editor) {
-
-	var url = document.createElement('a');
-	url.href = editor.serviceUrl.href;
-	url.protocol = "ws";
-    webSocket = new WebSocket(url.href, "json");
-
-    webSocket.onerror = function(event) {
-		console.log('ws error', event);
-    };
-
-    webSocket.onclose = function(event) {
-        console.log('ws close', event);
-    };
-
-    webSocket.onmessage = function(event) {
+	
+	function sendAllContent() {
+		var content = _editor.getSession().getValue();
+		var message = 'update\n' + content;
+		con.send(message);
+	};
+	
+	
+	function run(ev) {
+		//TODO: Skip sending code, as the server already have the content
+		var content = _editor.getSession().getValue();
+		var message = 'run\n' + content;
+		con.send(message);
+	};
+	
+	
+	function createCompleter(){
+		return {
+			getCompletions: function(currEditor, session, pos, prefix, callback) {
+				var offset = calculateOffset(session.getValue(), pos);
+				var message = 'codeCompletion\n' + offset;
+				con.send(message);
+							
+				completionCallback = callback;
+			}
+		};
+	};
+	
+	function handleResponse(event) {
 		var data = JSON.parse(event.data);
-		console.log(data);
 		if (data instanceof Array) {
 			if (data.length === 0) {
+				_editor.getSession().clearAnnotations();
 				return;
 			}
-			var type = data[0]._type_;
+			var type = data[0].type;
 			switch(type) {
 				case 'problem':
-					updateMarkers(editor, data);
+					updateMarkers(data);
 					break;
 				case 'completion':
 					completionCallback(null, data);
@@ -126,78 +116,83 @@ function openWebSocket(editor) {
 				default:
 			}
 		} else {
-			var type = data._type_;
+			var type = data.type;
 			switch(type) {
 			case 'run':
-				editor.getSession().setAnnotations(undefined);
+				_editor.getSession().clearAnnotations();
+				if (data.error === "") {
+					alert(data.console);
+				} else {
+					alert(data.error);
+				}
 			}
 		}
-
-    }
-}
-
-function handleChanged(editor, delay) {
-	// console.log("handleChange: " + delay);
-	if (delay > 0) {
-		if (saveTimer != null) {
-			// console.log("clearTimeout: ");
-			clearTimeout(saveTimer);
+	};
+	
+	
+	function updateMarkers(problems) {
+		if (typeof problems == "string") {
+			problems = JSON.parse(problems);
 		}
-		// console.log("setTimeout: " + saveDelay);
-		saveTimer = setTimeout(function () { handleChanged(editor, 0); }, saveDelay);
-	} else {
-		saveTimer = null;
-		save(editor);
-    }
-}
+		var annotations = problems.map(function(problem) {
+	    	return new Annotation(convertProblemSeverity(problem.severity), problem.message, problem.lineNumber - 1);
+	    });
+	    _editor.getSession().setAnnotations(annotations);
+	};
+	
 
-function saveXHR(editor) {
-	var xmlHttp = new XMLHttpRequest();
-	var saveUrl = editor.serviceUrl.href + "&format=json";
-	xmlHttp.open("POST", saveUrl, true);
-	var startTime = new Date();
-	xmlHttp.onreadystatechange = function () {
-		if (xmlHttp.readyState == 4 && xmlHttp.status == 200) {
-			var saveDuration = new Date() - startTime;
-			if (saveDuration * 10 > defaultSaveDelay) {
-				saveDelay = saveDuration * 10;
-			} else {
-				saveDelay = defaultSaveDelay;
-			}
-			// console.log("saveDelay: " + saveDelay);
-			if (saveTimer == null) {
-				// console.log("updating markers");
-				updateMarkers(editor, xmlHttp.responseText);
-			}
+	function calculateOffset(code, position){
+		var lines = code.split("\n");
+		var offset = 0;
+		for(var i = 0; i < position.row; i++){
+			offset += lines[i].length + 1;
 		}
-	}
-	// console.log("saving");
-	xmlHttp.send(editor.getValue());
-}
+		offset += position.column;
+		return offset;
+	};
 
-function updateMarkers(editor, problems) {
-	if (typeof problems == "string") {
-		problems = JSON.parse(problems);
-	}
-	var annotations = problems.map(function(problem) {
-    	return new Annotation(convertProblemSeverity(problem.severity), problem.message, problem.lineNumber - 1);
-    });
-    editor.getSession().setAnnotations(annotations);
-}
+	function Annotation(type, message, lineNumber) {
+	    this.type = type; // "error", "warning", "info"
+	    this.text = message;
+	    this.row = lineNumber;
+	};
 
-function Annotation(type, message, lineNumber) {
-    this.type = type; // "error", "warning", "info"
-    this.text = message;
-    this.row = lineNumber;
-}
+	function convertProblemSeverity(type) {
+		switch (type) {
+		case 'Warning': return 'warning';
+		case 'Info':	return 'info';
+	    default: 		return 'error';
+	    }
+	};
+	
+	return {
+		init : function(editorId, mode, editors) {
+			// Configure current editor
+			editorIds = editors;
+			initialize(editorId, mode);
+			
+			// Set up connection to the first editor
+			var firstUrl = editorIds[0].url;
+			con.init({url : firstUrl});
+			con.subscribe(this);
+			return this;
+		},
+		
+		notify : function(event) {
+			handleResponse(event);
+		},
+		
+		switchEditor : function(id) {
+			/* TODO: implement on the server how to retrieve
+			 * a new file based on the id 
+			 */
+		}
+		
+	};
+	
+	
+})(ace, connector);
 
-function convertProblemSeverity(type) {
-	switch (type) {
-	case 'Warning': return 'warning';
-	case 'Info':	return 'info';
-    default: 		return 'error';
-    }
-}
 			
     /*
 $(document).ready(function () {

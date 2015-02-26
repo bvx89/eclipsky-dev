@@ -24,6 +24,9 @@ public class JsonResponseFormatter extends ResponseFormatter {
 
 	private void attribute(String name, String s, boolean quote) {
 		printWriter.write("\"" + name + "\": ");
+		if (s.equals("\"\"")) {
+			quote = false;
+		}
 		if (quote) {
 			printWriter.write("\"");
 		}
@@ -59,20 +62,55 @@ public class JsonResponseFormatter extends ResponseFormatter {
 	}
 
 	public static CharSequence escapeJson(CharSequence cs) {
-		// quotes,\, /, \r, \n, \b, \f, \t
-		StringBuilder buffer = new StringBuilder(cs.length() + 20);
-		for (int i = 0; i < cs.length(); ++i) {
-			char c = cs.charAt(i);
-			switch (c) {
-			case '"': case '\\': case '/':
-			case '\r': case '\n': case '\b': case '\f': case '\t':
-				buffer.append("\\");
-				buffer.append(c);
-				break;
-			default: buffer.append(c);
-			}
+		if (cs == null || cs.length() == 0) {
+			return "\"\"";
 		}
-		return buffer;
+
+		char         c = 0;
+		int          i;
+		int          len = cs.length();
+		StringBuilder sb = new StringBuilder(len + 4);
+		String       t;
+
+		for (i = 0; i < len; i += 1) {
+		    c = cs.charAt(i);
+		    switch (c) {
+		    case '\\':
+		    case '"':
+				sb.append('\\');
+				sb.append(c);
+				break;
+	    	case '/':
+	    		// if (b == '<') {
+	    		sb.append('\\');
+    			// }
+	    		sb.append(c);
+	    		break;
+	    	case '\b':
+    			sb.append("\\b");
+    			break;
+	    	case '\t':
+	    		sb.append("\\t");
+	    		break;
+	    	case '\n':
+	    		sb.append("\\n");
+	    		break;
+	    	case '\f':
+	    		sb.append("\\f");
+	    		break;
+	    	case '\r':
+	    		sb.append("\\r");
+	    		break;
+	    	default:
+	    		if (c < ' ') {
+	    			t = "000" + Integer.toHexString(c);
+	    			sb.append("\\u" + t.substring(t.length() - 4));
+	    		} else {
+	    			sb.append(c);
+	    		}
+		    }
+		}
+		return sb;
 	}
 	
 	// entities
@@ -82,7 +120,7 @@ public class JsonResponseFormatter extends ResponseFormatter {
 		writeDelimiter(popDelimiter());
 		pushDelimiter(", \n");
 		printWriter.write("{ ");
-		attributeUnescaped("_type_", name);
+		attributeUnescaped("type", name);
 		return this;
 	}
 

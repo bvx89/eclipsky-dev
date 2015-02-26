@@ -73,32 +73,34 @@ public class JavaSourceEditor extends GenericSourceEditor {
 	}
 
 	@Override
-	protected void addCompletionProposals(int pos, Collection<Proposal> completions) {
+	protected void addCompletionProposals(int pos, Collection<Proposal> completions) throws NullPointerException {
+		if (workingCopy == null) {
+			throw new NullPointerException("Working Copy is null");
+		}
 		try {
 			workingCopy.codeComplete(pos, new CompletionRequestor() {
 				@Override
 				public void accept(CompletionProposal proposal) {
 					Proposal p = Proposal.getProposal(proposal);
-					completions.add(p);
-					
+					completions.add(p);					
 				}
-			});
-		} catch (JavaModelException e) {
-			e.printStackTrace();
+			});		
+		} catch (JavaModelException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
 		}
 	}
 	
 	@Override
-	public void close() {
+	public void close(IProgressMonitor monitor) {
 		if (workingCopy != null) {
 			try {
-				workingCopy.commitWorkingCopy(true, null);
+				workingCopy.commitWorkingCopy(true, monitor);
 				workingCopy.discardWorkingCopy();
 			} catch (JavaModelException e) {
 			}
 		}
-		workingCopy = null;
-		super.close();
+		super.close(monitor);
 	}
 
 	// launching

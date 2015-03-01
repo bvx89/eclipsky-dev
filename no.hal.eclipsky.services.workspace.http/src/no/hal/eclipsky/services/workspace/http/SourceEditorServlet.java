@@ -177,7 +177,7 @@ public class SourceEditorServlet extends WebSocketServlet {
 			@Override
 			public void onClose(int closeCode, String message) {
 				// TODO: Notify GIT exporter
-				editor.close();
+				editor.close(null);
 			}
 
 			@Override
@@ -203,7 +203,7 @@ public class SourceEditorServlet extends WebSocketServlet {
 			}
 			
 			private void runCode(String contents) {				
-				editor.close();
+				editor.close(null);
 				// second boolean, result, doesn't do anything
 				RunResult result = editor.run(contents, true);
 				if (debugWriter != null) {

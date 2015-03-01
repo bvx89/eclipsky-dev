@@ -28,7 +28,7 @@ var editor = (function(ace, con) {
 		_editor.commands.addCommand({
 			name: 'run', 
 			readOnly: false, 
-			bindKey: { win: 'Ctrl-'+RUN_KEY, mac: 'Command-F9'+RUN_KEY },
+			bindKey: { win: 'Ctrl-'+RUN_KEY, mac: 'Command-'+RUN_KEY },
 			exec: run
 		});
 		
@@ -135,7 +135,8 @@ var editor = (function(ace, con) {
 			problems = JSON.parse(problems);
 		}
 		var annotations = problems.map(function(problem) {
-	    	return new Annotation(convertProblemSeverity(problem.severity), problem.message, problem.lineNumber - 1);
+	    	return new Annotation(convertProblemSeverity(problem.severity), 
+									problem.message, problem.lineNumber - 1);
 	    });
 	    _editor.getSession().setAnnotations(annotations);
 	};
@@ -172,7 +173,7 @@ var editor = (function(ace, con) {
 			initialize(editorId, mode);
 			
 			// Set up connection to the first editor
-			var firstUrl = editorIds[0].url;
+			var firstUrl = editorIds[0].id;
 			con.init({url : firstUrl});
 			con.subscribe(this);
 			return this;

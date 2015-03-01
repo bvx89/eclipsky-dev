@@ -1,6 +1,7 @@
 var connector = (function() {
 	var webSocket = null,
 		url,
+		c = console, // {log : function(){}}
 		
 		// All subscribers need to implement a 'notify()'-function
 		subscribers = [], 
@@ -9,12 +10,11 @@ var connector = (function() {
 	
 	// Publish to all listeners
 	function publish(data) {
-		console.log('publishing: ', data);
+		c.log('publishing: ', data);
 		for (var i = subscribers.length - 1; i >= 0; i--) {
 			subscribers[i].notify(data);
 		}
 	};
-	
 	
 	// Private function for sending XHR requests
 	function sendXHRdata(data) {
@@ -34,20 +34,23 @@ var connector = (function() {
 	};
 	
 	function initializeWebsocket(url) {
-		var url = document.createElement('a');
-		url.href = url;
-		url.protocol = "ws";
-	    webSocket = new WebSocket(url, "json");
+		var link = document.createElement('a');
+		
+		link.href = url;
+		link.protocol = "ws";
+		c.log('Connecting with link: ');
+		c.log(link);
+	    webSocket = new WebSocket(link.href, "json");
 
 	    webSocket.onerror = function(event) {
 			// TODO: Reconnect?
-	    	console.log('ws error', event);
+	    	c.log('ws error', event);
 	    	// publish(event);
 	    };
 
 	    webSocket.onclose = function(event) {
 	    	// TODO: Notify?
-	        console.log('ws close', event);
+	        c.log('ws close', event);
 	        // publish(event);
 	    };
 

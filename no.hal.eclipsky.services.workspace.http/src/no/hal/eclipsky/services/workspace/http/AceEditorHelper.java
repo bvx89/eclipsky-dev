@@ -57,7 +57,7 @@ public class AceEditorHelper {
 				"\t\t\t<script src=\"/js/editor.js\" type=\"text/javascript\" charset=\"utf-8\"></script>\n");
 		writer.println("\t\t\t<script>\n" +
 				"\t\t\tvar editors = [{id: window.location}];\n" +
-				"\t\t\teditor.init('Oving01_java', 'java', editors);\n" +
+				"\t\t\teditor.init('" + editorId + "', 'java', editors);\n" +
 				"\t\t\t</script>");
 		if (! embed) {
 			writer.println("\t</body>\n</html>\n");

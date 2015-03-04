@@ -1,7 +1,9 @@
 var connector = (function() {
 	var webSocket = null,
-		url,
-		c = console, // {log : function(){}}
+		
+		// Set logging
+		logging = true,
+		c = (logging ? console : {log : function(){}});
 		
 		// All subscribers need to implement a 'notify()'-function
 		subscribers = [], 
@@ -18,7 +20,7 @@ var connector = (function() {
 	
 	// Private function for sending XHR requests
 	function sendXHRdata(data) {
-		var xmlHttp = new XMLHttpRequest();
+		var xmlHttp = getXmlHTTP();
 		xmlHttp.open("POST", url + XHRPostfix, true);
 		var startTime = new Date();
 		xmlHttp.onreadystatechange = function () {
@@ -28,6 +30,15 @@ var connector = (function() {
 		}
 		xmlHttp.send(data);
 	};
+	
+	
+	function getXmlHTTP() {
+        if (window.XMLHttpRequest) {
+            return new XMLHttpRequest();
+        } else {
+            return new ActiveXObject('Microsoft.XMLHTTP');
+        }
+    };
 	
 	function sendWSdata(data) {
 		webSocket.send(data);
